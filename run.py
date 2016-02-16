@@ -6,8 +6,8 @@ from wtforms import validators
 from dynamic_obj.dynamic_object import DynamicObject, Segment
 
 class TestObj(DynamicObject):
-    domain = Segment(wtforms.StringField, validators.Length(min=4, max=20, message="domain invalid"))
-    ip = Segment(wtforms.StringField, validators.Length(min=7, max=15, message="ip invalid"))
+    domain = Segment(wtforms.StringField, [validators.Length(min=4, max=20, message="domain invalid")])
+    ip = Segment(wtforms.StringField, [validators.Length(min=7, max=15, message="ip invalid")])
 
     def perform(self, *args, **kwargs):
         return [{"url": "http://www.360.cn"},]
