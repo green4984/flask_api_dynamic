@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import abc
+
 import wtforms
 from flask import Blueprint
 from flask import current_app
@@ -14,24 +16,20 @@ class DynamicObjectMeta(type):
     '''
 
     def __new__(cls, name, base, attrs):
-        if base[0] is MethodView:
-            # cls is DynamicObject
-            t = type.__new__(cls, name, base, attrs)
-        else:  # cls is the subclass of DynamicObject
+        t = type.__new__(cls, name, base, attrs)
+        # if the 'cls' is the subclass of DynamicObject
+        if MethodView not in base and DynamicObject in base:
             fields = []
             # add Segment to __fields
             for key, val in attrs.iteritems():
                 if not key.startswith('__') and isinstance(val, Segment):
                     fields.append(key)
-            attrs.setdefault('__fields', fields)
-            t = type.__new__(cls, name, base, attrs)
+            setattr(t, '__fields', fields)
         return t
-        # def __init__(cls, name, base, attrs):
-        #    type.__init__(cls, name, base, attrs)
 
 
 # avoid metaclass conflict
-class DynamicMeta(DynamicObjectMeta, MethodViewType):
+class DynamicMeta(abc.ABCMeta, DynamicObjectMeta, MethodViewType):
     pass
 
 
@@ -43,6 +41,7 @@ class DynamicObject(MethodView):
     __register_class = set()
     decorators = []
 
+    @abc.abstractmethod
     def perform(self, *args, **kwargs):
         raise NotImplementedError("class which inherit DynamicObject should implement `perform` method")
 
@@ -54,7 +53,6 @@ class DynamicObject(MethodView):
                 ret_val = self.perform()
                 if ret_val is None:
                     raise ValueError
-
                 if isinstance(ret_val, dict):
                     if "data" not in ret_val:
                         ret_val = {"data": ret_val}
@@ -87,6 +85,7 @@ class DynamicObject(MethodView):
         blueprints = Blueprint(obj_class.__name__, __name__, url_prefix=url_prefix)
         cls.__register_class.add(name)
         view_func = obj_class.as_view(name)
+        blueprints.add_url_rule('/{0}'.format(name), view_func=view_func)
         blueprints.add_url_rule('/{0}/'.format(name), view_func=view_func)
         app.register_blueprint(blueprints)
 
