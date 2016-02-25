@@ -25,7 +25,7 @@ path = os.path.split(path)
 if path not in sys.path:
     sys.path.insert(0, path[0])
 from flask import Flask
-app = Flask(__name__)
+app = Flask(__name__, static_folder=None)
 
 if __name__ == '__main__':
     from Tests import init_test

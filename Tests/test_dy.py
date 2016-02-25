@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import flask_sqlalchemy
 import simplejson as json
 from flask import current_app as app
 from wtforms import StringField
@@ -18,14 +19,25 @@ class TestObj(TestCase):
 
         # invalid query, domain and ip is too short
         rv = self.get("/api/testobj?domain=www&ip=1")
+        self.assertGreaterEqual(rv.status_code, 400)
         cont = json.loads(rv.data)
         self.assertTrue(cont.has_key("error"))
         self.assertGreaterEqual(len(cont.get("error")), 1)
 
+        rv = self.get("/api/testobj?domain=www&ip=1")
+        self.assertGreaterEqual(rv.status_code, 400)
+        cont = json.loads(rv.data)
+        self.assertTrue(cont.has_key("error"))
+        self.assertGreaterEqual(len(cont.get("error")), 1)
+
+        rv = self.get("/api/testobj?domain=www.360.cn&a=1")
+        cont = json.loads(rv.data)
+        self.assertTrue(cont.has_key("error"))
+        self.assertIn('not support', cont['error'])
+
         rv = self.get("/api/testobj?domain=www.360.cn")
         cont = json.loads(rv.data)
         self.assertTrue(cont.has_key("data"))
-        self.assertGreaterEqual(len(cont.get("data")), 1)
 
         # add DyClass
         DynamicObject.create_api(DyClass)
@@ -40,7 +52,13 @@ class TestObj(TestCase):
         cont = json.loads(rv.data)
         self.assertTrue(cont.has_key("data"))
         self.assertGreaterEqual(len(cont.get("data")), 1)
-        self.output(cont.get("data").get("url"))
+        self.output(cont.get("data")[0].get("url"))
+
+    def test_db(self):
+        DynamicObject.create_api(DbShow)
+        rv = self.get("/api/dbshow?name=John")
+        cont = json.loads(rv.data)
+        self.assertIn('John', cont.get("data"))
 
 
 class DyClass(DynamicObject):
@@ -58,3 +76,18 @@ class Show(DynamicObject):
         for rule in app.url_map._rules:
             urls.append(str(rule))
         return {"url": urls}
+
+
+class DbShow(DynamicObject, flask_sqlalchemy.Model):
+    name = Segment(StringField, [])
+
+    def perform(self, *args, **kwargs):
+        return self.name
+
+
+class AddClass(DynamicObject):
+    class_name = Segment(StringField, [Length(min=1, max=10)])
+    ret_val = Segment(StringField, [Length(min=1)])
+
+    def perform(self, *args, **kwargs):
+        return self.ret_val
