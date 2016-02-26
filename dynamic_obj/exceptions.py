@@ -6,3 +6,7 @@ class CheckException(Exception):
 
 class FieldNotSupport(Exception):
     pass
+
+
+class ImplementedError(Exception):
+    pass

@@ -15,7 +15,7 @@ class TestObj(DynamicObject):
 
 app = Flask(__name__)
 if __name__ == '__main__':
-    DynamicObject.create_api(TestObj, app=app)
+    DynamicObject.create_api_blueprint(TestObj, app=app)
     app.run(host = '0.0.0.0', port = 7779,
             debug=True,
             threaded = True)

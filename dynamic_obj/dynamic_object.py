@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 import abc
 
+import flask_sqlalchemy
 import wtforms
 from flask import Blueprint
+from flask import Flask
 from flask import current_app
 from flask import jsonify
 from flask import make_response
 from flask import request
 from flask.views import MethodView, MethodViewType
-import flask_sqlalchemy
 
 import exceptions
 
@@ -25,7 +26,8 @@ class DynamicObjectMeta(type):
         if MethodView in base:
             return t
         # subclass may rewrite get, so comment it out
-        # attrs.pop("get", None)
+        if attrs.has_key('get'):
+            raise exceptions.ImplementedError("subclass of DynamicObject must not implement 'get' method")
         if DynamicObject in base:
             fields = []
             # add Segment to __fields
@@ -40,7 +42,8 @@ class DynamicObjectMeta(type):
 
 
 # avoid metaclass conflict
-class DynamicMeta(abc.ABCMeta, DynamicObjectMeta, MethodViewType):
+#class DynamicMeta(abc.ABCMeta, DynamicObjectMeta, MethodViewType):
+class DynamicMeta(DynamicObjectMeta, MethodViewType):
     pass
 
 
@@ -75,19 +78,36 @@ class DynamicObject(MethodView):
        which can define class by user if you like
     """
     __metaclass__ = DynamicMeta
-    __register_class = set()
-    _form_class = {}
     decorators = [convert_standard_response]
 
-    @abc.abstractmethod
+    def __init__(self, app=None):
+        self.app = app
+        self.__register_class = {}
+        self.__form_class = {}
+        if app:
+            self.init_app(app)
+
+    def init_app(self, app):
+        assert isinstance(app, Flask)
+        self.app = app
+        for name, cls in self.__register_class.iteritems():
+            if not cls.get("is_registered"):
+                app.register_blueprint(cls.get("bp"))
+                cls["is_registered"] = True
+
+    #@abc.abstractmethod
     def perform(self, *args, **kwargs):
-        raise NotImplementedError("class which inherit DynamicObject should implement `perform` method")
+        raise exceptions.ImplementedError("class which inherit DynamicObject should implement `perform` method")
 
     def get(self, *args, **kwargs):
         req_args = request.args
         ret_val = None
         if len(req_args) > 0:
-            form = self.__make_form(req_args)
+            try:
+                # FIXME need call DynamicObject instance
+                form = super(self.__class__, self)._make_form(req_args)
+            except Exception as e:
+                pass
             if not form.validate():
                 raise exceptions.CheckException(form.errors)
             self.__set_field_value(req_args)
@@ -108,20 +128,23 @@ class DynamicObject(MethodView):
     def options(self):
         return ''
 
-    @classmethod
-    def create_api(cls, obj_class, url_prefix='/api', app=None):
-        name = getattr(obj_class, "__obj_name__", obj_class.__name__).lower()
-        if name in cls.__register_class:
-            return
-        app = current_app if not app else app
-        blueprints = Blueprint(obj_class.__name__, __name__, url_prefix=url_prefix)
-        cls.__register_class.add(name)
-        view_func = obj_class.as_view(name)
-        blueprints.add_url_rule('/{0}'.format(name), view_func=view_func)
-        blueprints.add_url_rule('/{0}/'.format(name), view_func=view_func)
-        app.register_blueprint(blueprints)
+    def create_api(self, object_class, url_prefix='/api'):
+        assert self.app
+        bp = self.create_api_blueprint(object_class, url_prefix)
+        self.app.register_blueprint(bp)
 
-    def __make_form(self, req_args):
+    def create_api_blueprint(self, obj_class, url_prefix='/api'):
+        name = getattr(obj_class, "__obj_name__", obj_class.__name__).lower()
+        if name in self.__register_class:
+            return self.__register_class.get(name)["bp"]
+        blueprint = Blueprint(obj_class.__name__, __name__, url_prefix=url_prefix)
+        view_func = obj_class.as_view(name)
+        blueprint.add_url_rule('/{0}'.format(name), view_func=view_func)
+        blueprint.add_url_rule('/{0}/'.format(name), view_func=view_func)
+        self.__register_class.setdefault(name, {"is_registered": False, "bp": blueprint})
+        return blueprint
+
+    def _make_form(self, req_args):
         """ make the form by query parameters"""
         fields = {}
         support_fields = getattr(self, '__fields')

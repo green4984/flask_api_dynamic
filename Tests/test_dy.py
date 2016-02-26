@@ -7,6 +7,7 @@ from wtforms.validators import Length
 
 from Tests import TestCase
 from dynamic_obj.dynamic_object import DynamicObject, Segment
+from run_test import dy
 
 
 class TestObj(TestCase):
@@ -40,9 +41,9 @@ class TestObj(TestCase):
         self.assertTrue(cont.has_key("data"))
 
         # add DyClass
-        DynamicObject.create_api(DyClass)
+        DynamicObject.create_api_blueprint(DyClass)
 
-        DynamicObject.create_api(Show)
+        DynamicObject.create_api_blueprint(Show)
         rv = self.get("/api/show")
         cont = json.loads(rv.data)
         self.assertTrue(cont.has_key("fields"))
@@ -55,7 +56,7 @@ class TestObj(TestCase):
         self.output(cont.get("data")[0].get("url"))
 
     def test_db(self):
-        DynamicObject.create_api(DbShow)
+        dy.create_api_blueprint(DbShow)
         rv = self.get("/api/dbshow?name=John")
         cont = json.loads(rv.data)
         self.assertIn('John', cont.get("data"))

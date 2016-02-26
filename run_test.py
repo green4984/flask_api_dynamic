@@ -26,10 +26,12 @@ if path not in sys.path:
     sys.path.insert(0, path[0])
 from flask import Flask
 app = Flask(__name__, static_folder=None)
+dy = DynamicObject()
 
 if __name__ == '__main__':
     from Tests import init_test
     init_test(app)
-    DynamicObject.create_api(TestObj, app=app)
+    dy.create_api_blueprint(TestObj)
+    dy.init_app(app)
     testsuite = unittest.TestLoader().discover('Tests')
     unittest.TextTestRunner(verbosity=2).run(testsuite)
