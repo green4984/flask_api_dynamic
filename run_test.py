@@ -3,9 +3,10 @@
 
 import wtforms
 from wtforms import validators
-from dynamic_obj.dynamic_object import DynamicObject, Segment
+from dynamic_obj.dynamic_object_base import DynamicObjectBase, Segment
+from dynamic_obj.dy_manager import DyManager
 
-class TestObj(DynamicObject):
+class TestObj(DynamicObjectBase):
     domain = Segment(wtforms.StringField, [validators.Length(min=4, max=20, message="domain invalid")])
     ip = Segment(wtforms.StringField, [validators.Length(min=7, max=15, message="ip invalid")])
 
@@ -26,7 +27,7 @@ if path not in sys.path:
     sys.path.insert(0, path[0])
 from flask import Flask
 app = Flask(__name__, static_folder=None)
-dy = DynamicObject()
+dy = DyManager()
 
 if __name__ == '__main__':
     from Tests import init_test

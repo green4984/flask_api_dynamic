@@ -6,7 +6,7 @@ from wtforms import StringField
 from wtforms.validators import Length
 
 from Tests import TestCase
-from dynamic_obj.dynamic_object import DynamicObject, Segment
+from dynamic_obj.dynamic_object_base import DynamicObjectBase, Segment
 from run_test import dy
 
 
@@ -41,9 +41,9 @@ class TestObj(TestCase):
         self.assertTrue(cont.has_key("data"))
 
         # add DyClass
-        DynamicObject.create_api_blueprint(DyClass)
+        dy.create_api(DyClass)
 
-        DynamicObject.create_api_blueprint(Show)
+        dy.create_api(Show)
         rv = self.get("/api/show")
         cont = json.loads(rv.data)
         self.assertTrue(cont.has_key("fields"))
@@ -56,20 +56,20 @@ class TestObj(TestCase):
         self.output(cont.get("data")[0].get("url"))
 
     def test_db(self):
-        dy.create_api_blueprint(DbShow)
+        dy.create_api(DbShow)
         rv = self.get("/api/dbshow?name=John")
         cont = json.loads(rv.data)
         self.assertIn('John', cont.get("data"))
 
 
-class DyClass(DynamicObject):
+class DyClass(DynamicObjectBase):
     host = Segment(StringField, [Length(min=1, max=20)])
 
     def perform(self, *args, **kwargs):
         return {"dynamic": "dynamic add DyClass"}
 
 
-class Show(DynamicObject):
+class Show(DynamicObjectBase):
     url = Segment(StringField, [Length(min=0)])
 
     def perform(self, *args, **kwargs):
@@ -79,14 +79,14 @@ class Show(DynamicObject):
         return {"url": urls}
 
 
-class DbShow(DynamicObject, flask_sqlalchemy.Model):
+class DbShow(DynamicObjectBase, flask_sqlalchemy.Model):
     name = Segment(StringField, [])
 
     def perform(self, *args, **kwargs):
         return self.name
 
 
-class AddClass(DynamicObject):
+class AddClass(DynamicObjectBase):
     class_name = Segment(StringField, [Length(min=1, max=10)])
     ret_val = Segment(StringField, [Length(min=1)])
 

@@ -13,13 +13,13 @@ from flask.views import MethodView, MethodViewType
 
 import exceptions
 
+__dynamic_object_base = None
 
 class DynamicObjectMeta(type):
     ''' define the metaclass for dynamic object for create,
     record the segment fields in __fields just for no need
     to use 'dir(self)' for subclass in for loop
     '''
-
     def __new__(cls, name, base, attrs):
         t = type.__new__(cls, name, base, attrs)
         # if the 'cls' is the subclass of DynamicObject
@@ -28,7 +28,7 @@ class DynamicObjectMeta(type):
         # subclass may rewrite get, so comment it out
         if attrs.has_key('get'):
             raise exceptions.ImplementedError("subclass of DynamicObject must not implement 'get' method")
-        if DynamicObject in base:
+        if DynamicObjectBase in base:
             fields = []
             # add Segment to __fields
             for key, val in attrs.iteritems():
@@ -42,8 +42,7 @@ class DynamicObjectMeta(type):
 
 
 # avoid metaclass conflict
-#class DynamicMeta(abc.ABCMeta, DynamicObjectMeta, MethodViewType):
-class DynamicMeta(DynamicObjectMeta, MethodViewType):
+class DynamicMeta(abc.ABCMeta, DynamicObjectMeta, MethodViewType):
     pass
 
 
@@ -73,29 +72,15 @@ def convert_standard_response(func):
     return decorator
 
 
-class DynamicObject(MethodView):
+class DynamicObjectBase(MethodView):
     """dynamic create object during the flask is already running
        which can define class by user if you like
     """
     __metaclass__ = DynamicMeta
     decorators = [convert_standard_response]
+    _form_class = {}
 
-    def __init__(self, app=None):
-        self.app = app
-        self.__register_class = {}
-        self.__form_class = {}
-        if app:
-            self.init_app(app)
-
-    def init_app(self, app):
-        assert isinstance(app, Flask)
-        self.app = app
-        for name, cls in self.__register_class.iteritems():
-            if not cls.get("is_registered"):
-                app.register_blueprint(cls.get("bp"))
-                cls["is_registered"] = True
-
-    #@abc.abstractmethod
+    @abc.abstractmethod
     def perform(self, *args, **kwargs):
         raise exceptions.ImplementedError("class which inherit DynamicObject should implement `perform` method")
 
@@ -103,11 +88,7 @@ class DynamicObject(MethodView):
         req_args = request.args
         ret_val = None
         if len(req_args) > 0:
-            try:
-                # FIXME need call DynamicObject instance
-                form = super(self.__class__, self)._make_form(req_args)
-            except Exception as e:
-                pass
+            form = self.__make_form(req_args)
             if not form.validate():
                 raise exceptions.CheckException(form.errors)
             self.__set_field_value(req_args)
@@ -128,23 +109,7 @@ class DynamicObject(MethodView):
     def options(self):
         return ''
 
-    def create_api(self, object_class, url_prefix='/api'):
-        assert self.app
-        bp = self.create_api_blueprint(object_class, url_prefix)
-        self.app.register_blueprint(bp)
-
-    def create_api_blueprint(self, obj_class, url_prefix='/api'):
-        name = getattr(obj_class, "__obj_name__", obj_class.__name__).lower()
-        if name in self.__register_class:
-            return self.__register_class.get(name)["bp"]
-        blueprint = Blueprint(obj_class.__name__, __name__, url_prefix=url_prefix)
-        view_func = obj_class.as_view(name)
-        blueprint.add_url_rule('/{0}'.format(name), view_func=view_func)
-        blueprint.add_url_rule('/{0}/'.format(name), view_func=view_func)
-        self.__register_class.setdefault(name, {"is_registered": False, "bp": blueprint})
-        return blueprint
-
-    def _make_form(self, req_args):
+    def __make_form(self, req_args):
         """ make the form by query parameters"""
         fields = {}
         support_fields = getattr(self, '__fields')
